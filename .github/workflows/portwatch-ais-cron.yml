@@ -1,0 +1,56 @@
+name: PortWatch - ciclo AIS
+
+# Sveglia il polling dell'area AIS ogni 15 minuti: se l'ultimo ciclo ha piu' di
+# 15 minuti, il Worker avvia il refresh e genera eventi + notifiche email.
+# L'URL e' pubblico e in sola lettura: nessun secret necessario.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *" # UTC
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: portwatch-ais-cron
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Chiama /api/ais/status
+        env:
+          PORTWATCH_URL: https://site-32aceaf9996c406d9832e961f728fe05.freebuff.page
+        run: |
+          set -uo pipefail
+          url="$PORTWATCH_URL/api/ais/status"
+          for attempt in 1 2 3; do
+            code=$(curl -sS -o /tmp/status.json -m 60 -w "%{http_code}" "$url" || echo 000)
+            echo "tentativo $attempt - HTTP $code"
+            if [ "$code" = "200" ]; then
+              node -e '
+                const fs = require("fs");
+                const raw = fs.readFileSync("/tmp/status.json", "utf8");
+                let j;
+                try { j = JSON.parse(raw); } catch { console.log(raw.slice(0, 400)); process.exit(0); }
+                const s = j.status ?? {};
+                console.log("stato:", s.state ?? "?", "| ultimo ciclo:", s.lastPollAt ?? "-",
+                            "| messaggi:", s.messages ?? "-", "| errore:", s.error ?? "nessuno");
+                if (j.email) console.log("email:", j.email.available ? "operativa" : (j.email.reason ?? "non configurata"));
+              '
+              exit 0
+            fi
+            if [ "$code" = "429" ]; then
+              # Pausa per quota di hosting: i dati sono conservati e la quota si
+              # azzera al reset. Non e' un guasto dell'automazione, quindi non
+              # fa fallire l'esecuzione (eviterebbe un'email di errore ogni 15 minuti).
+              echo "::warning::Sito in pausa per quota di hosting: $(head -c 200 /tmp/status.json)"
+              echo "Nessun ciclo eseguito. Il prossimo giro riprovera' automaticamente."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Richiesta non riuscita: il sito non ha risposto 200."
+          exit 1
