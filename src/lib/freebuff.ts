@@ -21,12 +21,17 @@ export function freebuff(): FreebuffNext {
     );
   }
 
+  // Il flag dipende dall'origine, non da NODE_ENV: nel Worker compilato
+  // NODE_ENV vale sempre "production", anche quando si prova in locale. In
+  // produzione APP_ORIGIN è https, quindi il flag resta spento e non indebolisce
+  // nulla; serve solo al callback su http://localhost durante lo sviluppo.
+  const isLoopback = /^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(baseUrl);
+
   instance = createFreebuffNext({
     clientId,
     baseUrl,
     issuer: process.env.FREEBUFF_ISSUER || undefined,
-    // Solo in sviluppo: consente il callback su http://localhost.
-    allowInsecureLocalhost: process.env.NODE_ENV !== "production",
+    allowInsecureLocalhost: isLoopback,
   });
   return instance;
 }
