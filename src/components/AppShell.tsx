@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ConnectionBadge } from "./ConnectionBadge";
+import { UserMenu } from "./UserMenu";
 
 interface NavItem {
   href: string;
@@ -149,6 +150,7 @@ export function AppShell({ children, portName }: { children: React.ReactNode; po
             Sistema di monitoraggio marittimo · Porto di Termini Imerese (PA)
           </span>
           <span className="topbar-spacer" />
+          <UserMenu />
           <ConnectionBadge />
           <span className="topbar-clock" title="Ora locale di Roma">
             {clock || "--:--:--"} <span style={{ color: "var(--dim)" }}>CET</span>

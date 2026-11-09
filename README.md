@@ -169,7 +169,22 @@ Per aggiornare il sito pubblicato:
 
 Variabili e secret: `EMAIL_API_KEY` e, se serve, `EMAIL_FROM` / `NOTIFY_EMAILS` / `AISCAST_REST_URL`. **I secret e il database sono separati per ambiente**: aggiungere `EMAIL_API_KEY` sia in Preview sia in Production, altrimenti quell'ambiente dichiara le email come non configurate. Il database D1 (`DB`) è provisionato dall'ambiente Sites; non ci sono credenziali Cloudflare da gestire a mano.
 
-## 9. Limiti dichiarati
+## 9. Accesso e autenticazione
+
+Il sito è uno strumento operativo e non un servizio pubblico: **tutte le pagine e le API richiedono l'accesso**, tranne `/auth/freebuff/*` e i due endpoint di monitoraggio `/api/ais/status` e `/api/health` (usati dal cron e dai controlli esterni, senza dati personali).
+
+L'accesso usa **Sign in with Freebuff** (`@freebuff/auth`): l'utente entra con il proprio account Freebuff (Google, GitHub o Apple) e non ci sono password né segreti da gestire. L'integrazione è fatta di quattro pezzi:
+
+- `src/lib/freebuff.ts` — istanza unica, creata alla prima richiesta con `FREEBUFF_CLIENT_ID`, `FREEBUFF_ISSUER` e `APP_ORIGIN`;
+- `src/proxy.ts` — richiede la sessione prima di eseguire pagine e API: senza sessione le pagine rimandano a `/auth/freebuff/signin?returnTo=…` e le API rispondono `401`;
+- `src/app/auth/freebuff/[...freebuff]/route.ts` — callback di accesso, uscita e sessione;
+- `src/components/UserMenu.tsx` — nome dell'utente collegato e pulsante **Esci** nella barra superiore.
+
+Le regole di accesso sono isolate in `src/lib/access.ts` e coperte da test (`tests/access.test.ts`), così un percorso nuovo non finisce per sbaglio fuori o dentro la protezione.
+
+L'ambiente deve avere l'autenticazione abilitata su Sites (`sites_enable_auth`): il deploy inietta `FREEBUFF_CLIENT_ID`, `FREEBUFF_ISSUER`, `APP_ORIGIN` e la callback registrata è `/auth/freebuff/callback` sull'origine del sito. In locale si usano le variabili dell'ambiente **development**, mai quelle di produzione.
+
+## 10. Limiti dichiarati
 
 - La copertura AIS dipende dai ricevitori della fonte: l'assenza di segnale **non** implica l'assenza della nave.
 - aiscast è un servizio comunitario con livello anonimo: copertura e disponibilità variano nel tempo. L'attribuzione delle fonti è obbligatoria per licenza.
